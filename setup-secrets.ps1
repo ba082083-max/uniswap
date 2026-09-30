@@ -11,6 +11,7 @@ function Read-Secret([string]$prompt) {
 }
 
 function Invoke-Gh([string]$label, [string[]]$ghArgs) {
+    $ErrorActionPreference = 'Continue'
     $out = & gh @ghArgs 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Host "失敗: $label" -ForegroundColor Red
@@ -24,8 +25,11 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
     Write-Host 'gh (GitHub CLI) が見つかりません。' -ForegroundColor Red
     exit 1
 }
+$ErrorActionPreference = 'Continue'
 & gh auth status *> $null
-if ($LASTEXITCODE -ne 0) {
+$ok = ($LASTEXITCODE -eq 0)
+$ErrorActionPreference = 'Stop'
+if (-not $ok) {
     Write-Host 'GitHub にログインしていません。先に「gh auth login」を実行してください。' -ForegroundColor Red
     exit 1
 }
