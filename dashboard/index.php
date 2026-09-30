@@ -53,13 +53,30 @@ if (empty($_SESSION['auth'])) {
     exit;
 }
 
-// ---- 一時停止 / 再開 ----
-if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['paused'])) {
+// ---- 一時停止 / 再開 / 全部引き上げ ----
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
     if (!hash_equals($_SESSION['csrf'] ?? '', (string)($_POST['csrf'] ?? ''))) {
         http_response_code(400);
         exit('invalid request');
     }
-    write_json('control', ['paused' => $_POST['paused'] === '1', 'changed_at' => time()]);
+    $current = read_json('control', ['paused' => false, 'exit_at' => null]);
+    switch ($_POST['action']) {
+        case 'pause':
+            $next = ['paused' => true, 'exit_at' => $current['exit_at'] ?? null];
+            break;
+        case 'resume':
+            $next = ['paused' => false, 'exit_at' => null];
+            break;
+        case 'exit':
+            // 全ポジションを解除して一時停止
+            $next = ['paused' => true, 'exit_at' => time()];
+            break;
+        default:
+            http_response_code(400);
+            exit('invalid action');
+    }
+    $next['changed_at'] = time();
+    write_json('control', $next);
     header('Location: ./');
     exit;
 }
@@ -100,13 +117,32 @@ $totalFees = array_sum(array_column($positions, 'feesInToken1'));
     <?php else: ?>
       <span class="badge ok">稼働中（<?= h($age) ?> 秒前に受信）</span>
     <?php endif; ?>
-    <span class="badge">モード: <?= h($status['mode'] ?? '-') ?></span>
-    <span class="badge <?= $control['paused'] ? 'warn' : '' ?>"><?= $control['paused'] ? '一時停止中' : '自動判定 有効' ?></span>
-    <form method="post" class="inline">
-      <input type="hidden" name="csrf" value="<?= h($_SESSION['csrf'] ?? '') ?>">
-      <input type="hidden" name="paused" value="<?= $control['paused'] ? '0' : '1' ?>">
-      <button type="submit"><?= $control['paused'] ? '再開する' : '一時停止する' ?></button>
-    </form>
+    <?php if (($status['mode'] ?? '') === 'live'): ?>
+      <span class="badge bad">実取引モード</span>
+    <?php else: ?>
+      <span class="badge">監視モード（取引しない）</span>
+    <?php endif; ?>
+    <span class="badge <?= $control['paused'] ? 'warn' : '' ?>"><?= $control['paused'] ? '一時停止中' : '自動 有効' ?></span>
+    <?php if (!empty($control['exit_at'])): ?>
+      <span class="badge warn">引き上げ指示済み</span>
+    <?php endif; ?>
+    <?php if (!empty($status['halted'])): ?>
+      <span class="badge bad">連続失敗で自動停止中（一時停止→再開で解除）</span>
+    <?php endif; ?>
+    <div class="actions">
+      <form method="post" class="inline">
+        <input type="hidden" name="csrf" value="<?= h($_SESSION['csrf'] ?? '') ?>">
+        <input type="hidden" name="action" value="<?= $control['paused'] ? 'resume' : 'pause' ?>">
+        <button type="submit"><?= $control['paused'] ? '再開する' : '一時停止する' ?></button>
+      </form>
+      <?php if (($status['mode'] ?? '') === 'live'): ?>
+      <form method="post" class="inline" onsubmit="return confirm('すべてのポジションを解除して、資金をウォレットに戻します。よろしいですか？');">
+        <input type="hidden" name="csrf" value="<?= h($_SESSION['csrf'] ?? '') ?>">
+        <input type="hidden" name="action" value="exit">
+        <button type="submit" class="danger">全部引き上げる</button>
+      </form>
+      <?php endif; ?>
+    </div>
   </section>
 
   <section class="grid">
@@ -155,7 +191,33 @@ $totalFees = array_sum(array_column($positions, 'feesInToken1'));
           <tr><td><?= h($b['symbol']) ?></td><td class="r"><?= num($b['amount'], 6) ?></td></tr>
         <?php endforeach; ?>
       </table>
+      <?php if (($status['mode'] ?? '') === 'live'): $st = $status['settings'] ?? []; ?>
+        <p class="muted">
+          累計ガス代: <?= num($status['gasSpentEth'] ?? 0, 6) ?> ETH ·
+          直近24時間のリバランス: <?= h($status['rebalances24h'] ?? 0) ?> / <?= h($st['maxRebalancesPerDay'] ?? '-') ?> 回<br>
+          運用上限: <?= num($st['maxDeployValue'] ?? null, 0) ?> <?= h($sym1) ?> ·
+          レンジ幅: ±<?= h($st['rangeWidthPct'] ?? '-') ?>% ·
+          スリッページ: <?= h($st['slippagePct'] ?? '-') ?>%
+        </p>
+      <?php endif; ?>
     </div>
+    <div class="card">
+      <h2>取引履歴</h2>
+      <?php if (empty($status['history'])): ?>
+        <p class="muted">まだ取引はありません。</p>
+      <?php else: ?>
+      <ul class="log">
+        <?php $labels = ['open' => '新規作成', 'rebalance' => 'リバランス', 'exit' => '引き上げ']; ?>
+        <?php foreach ($status['history'] as $e): ?>
+          <li><span class="muted"><?= h(date('m/d H:i', strtotime($e['time']))) ?></span>
+            <strong><?= h($labels[$e['type']] ?? $e['type']) ?></strong> <?= h($e['detail']) ?></li>
+        <?php endforeach; ?>
+      </ul>
+      <?php endif; ?>
+    </div>
+  </section>
+
+  <section class="grid2">
     <div class="card">
       <h2>ログ</h2>
       <ul class="log">

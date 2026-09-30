@@ -14,6 +14,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: PHP syntax check
+        run: find dashboard -name "*.php" -print0 | xargs -0 -n1 php -l
+
       - name: Generate config.php from secrets
         env:
           DASH_PW: ${{ secrets.DASHBOARD_PASSWORD }}

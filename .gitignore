@@ -4,3 +4,4 @@ node_modules/
 dashboard/config.php
 dashboard/data/
 bot-token.txt
+bot/state.json

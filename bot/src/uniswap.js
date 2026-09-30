@@ -4,7 +4,8 @@ import { arbitrum } from 'viem/chains';
 // Uniswap v3 NonfungiblePositionManager (Arbitrum)
 export const POSITION_MANAGER = '0xC36442b4a4522E871399CD717aBDD847Ab11FE88';
 
-const POOL_ABI = parseAbi([
+export const POOL_ABI = parseAbi([
+  'function observe(uint32[] secondsAgos) view returns (int56[] tickCumulatives, uint160[] secondsPerLiquidityCumulativeX128s)',
   'function slot0() view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint8 feeProtocol, bool unlocked)',
   'function token0() view returns (address)',
   'function token1() view returns (address)',
@@ -12,13 +13,21 @@ const POOL_ABI = parseAbi([
   'function tickSpacing() view returns (int24)',
 ]);
 
-const ERC20_ABI = parseAbi([
+export const ERC20_ABI = parseAbi([
+  'function allowance(address owner, address spender) view returns (uint256)',
+  'function approve(address spender, uint256 amount) returns (bool)',
+  'function deposit() payable',
   'function decimals() view returns (uint8)',
   'function symbol() view returns (string)',
   'function balanceOf(address) view returns (uint256)',
 ]);
 
-const NPM_ABI = parseAbi([
+export const NPM_ABI = parseAbi([
+  'struct DecreaseLiquidityParams { uint256 tokenId; uint128 liquidity; uint256 amount0Min; uint256 amount1Min; uint256 deadline; }',
+  'function decreaseLiquidity(DecreaseLiquidityParams params) payable returns (uint256 amount0, uint256 amount1)',
+  'struct MintParams { address token0; address token1; uint24 fee; int24 tickLower; int24 tickUpper; uint256 amount0Desired; uint256 amount1Desired; uint256 amount0Min; uint256 amount1Min; address recipient; uint256 deadline; }',
+  'function mint(MintParams params) payable returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1)',
+  'function multicall(bytes[] data) payable returns (bytes[] results)',
   'function balanceOf(address owner) view returns (uint256)',
   'function tokenOfOwnerByIndex(address owner, uint256 index) view returns (uint256)',
   'function positions(uint256 tokenId) view returns (uint96 nonce, address operator, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper, uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128, uint128 tokensOwed0, uint128 tokensOwed1)',
@@ -26,7 +35,7 @@ const NPM_ABI = parseAbi([
   'function collect(CollectParams params) payable returns (uint256 amount0, uint256 amount1)',
 ]);
 
-const MAX_UINT128 = 2n ** 128n - 1n;
+export const MAX_UINT128 = 2n ** 128n - 1n;
 
 export function makeClient(rpcUrl) {
   return createPublicClient({ chain: arbitrum, transport: http(rpcUrl) });
@@ -89,6 +98,38 @@ export async function readPoolState(client, pool) {
     sqrtP: Number(sqrtPriceX96) / 2 ** 96,
     price: tickToPrice(t, pool.token0.decimals, pool.token1.decimals),
   };
+}
+
+// 過去 seconds 秒間の平均 tick（TWAP）
+export async function readTwapTick(client, pool, seconds = 300) {
+  const [tickCumulatives] = await client.readContract({
+    address: pool.address,
+    abi: POOL_ABI,
+    functionName: 'observe',
+    args: [[seconds, 0]],
+  });
+  const diff = Number(tickCumulatives[1] - tickCumulatives[0]);
+  return Math.floor(diff / seconds);
+}
+
+// ポジション内のトークン量（raw, bigint）を現在価格で計算
+export function positionAmountsRaw(liquidity, sqrtP, tickLower, tickUpper) {
+  const [a0, a1] = amountsForLiquidity(liquidity, sqrtP, tickLower, tickUpper);
+  return [BigInt(Math.floor(a0)), BigInt(Math.floor(a1))];
+}
+
+// 流動性 1 単位あたりの token0 / token1 必要量（raw, float）
+export function unitAmounts(sqrtP, tickLower, tickUpper) {
+  return amountsForLiquidity(1n, sqrtP, tickLower, tickUpper);
+}
+
+export async function readRawBalances(client, pool, wallet) {
+  const [eth, b0, b1] = await Promise.all([
+    client.getBalance({ address: wallet }),
+    client.readContract({ address: pool.token0.address, abi: ERC20_ABI, functionName: 'balanceOf', args: [wallet] }),
+    client.readContract({ address: pool.token1.address, abi: ERC20_ABI, functionName: 'balanceOf', args: [wallet] }),
+  ]);
+  return { eth, b0, b1 };
 }
 
 export async function readBalances(client, pool, wallet) {
