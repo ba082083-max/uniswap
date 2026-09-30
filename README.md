@@ -54,7 +54,8 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
 - ログ: `Get-Content C:\lp-bot\bot\bot.log -Tail 20 -Wait -Encoding UTF8`
-- 停止: `Stop-ScheduledTask -TaskName "LP Bot"`
+- 停止: `powershell -ExecutionPolicy Bypass -File C:lp-bototstop.ps1`
+- 再起動（.env 変更後）: `powershell -ExecutionPolicy Bypass -File C:lp-bototestart.ps1`
 
 ### Linux VPS（Node.js 20.6 以上）
 
@@ -74,14 +75,30 @@ pm2 save && pm2 startup   # VPS 再起動時も自動起動
 
 ## 設定（bot/.env）
 
+全項目の説明は [bot/.env.example](bot/.env.example) を参照。主なもの:
+
 | 項目 | 説明 |
 |---|---|
-| `RANGE_WIDTH_PCT` | 新レンジ幅（現在価格 ±%） |
-| `REBALANCE_DELAY_MIN` | レンジ外がこの分数続いたらリバランス対象と判定 |
-| `POLL_INTERVAL_SEC` | 監視間隔 |
+|  | （監視のみ）/ （実取引） |
+|  | live 時のみ。Bot 専用ウォレットの秘密鍵 |
+|  | 運用に使う上限額（USDC 建て） |
+|  | 新レンジ幅（現在価格 ±%） |
+|  | レンジ外がこの分数続いたらリバランス |
+|  | 24時間のリバランス上限 |
+
+## 実取引（live）の安全装置
+
+- すべての取引は送信前にシミュレーションし、失敗する取引は送らない
+- 現在価格が5分平均から  以上ずれていたら待機（急変・価格操作対策）
+- スワップ・流動性操作に最低受取量（スリッページ上限）を設定
+- ガス代用 ETH が不足したら取引しない
+- 運用額の上限、1日のリバランス回数上限
+- 3回連続で失敗したら自動停止（管理画面で「一時停止」→「再開」で解除）
+- 管理画面から一時停止・全部引き上げが可能
+- 管理画面の指示を受信するまで取引しない
 
 ## ロードマップ
 
 - [x] フェーズ1: 監視・レンジ外検知・リバランス案の提示・管理画面
-- [ ] フェーズ2: 自動リバランス（手数料回収 → 流動性引出 → 比率調整スワップ → 再提供）
-      ※ ローカルフォーク（anvil）で十分テストしてから、Bot専用ウォレット＋少額で本番
+- [x] フェーズ2: 自動リバランス（手数料回収 → 流動性引出 → 比率調整スワップ → 再提供）
+      ローカルフォーク（Hardhat）で新規作成・リバランス・急変時の待機・回数上限・引き上げ・ガス不足を検証済み
