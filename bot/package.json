@@ -1,0 +1,17 @@
+{
+  "name": "lp-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Uniswap v3 concentrated liquidity monitor / rebalancer",
+  "engines": {
+    "node": ">=20.6"
+  },
+  "scripts": {
+    "start": "node --env-file=.env src/index.js",
+    "once": "node --env-file=.env src/index.js --once"
+  },
+  "dependencies": {
+    "viem": "^2.21.0"
+  }
+}

@@ -1,0 +1,40 @@
+name: Deploy dashboard
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'dashboard/**'
+      - '.github/workflows/deploy-dashboard.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate config.php from secrets
+        env:
+          DASH_PW: ${{ secrets.DASHBOARD_PASSWORD }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        run: |
+          if [ -z "$DASH_PW" ] || [ -z "$BOT_TOKEN" ]; then
+            echo "Secrets DASHBOARD_PASSWORD / BOT_TOKEN を設定してください" >&2
+            exit 1
+          fi
+          php -r 'file_put_contents("dashboard/config.php", "<?php\nreturn " . var_export(["password" => getenv("DASH_PW"), "bot_token" => getenv("BOT_TOKEN")], true) . ";\n");'
+
+      - name: Upload via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./dashboard/
+          server-dir: ${{ secrets.FTP_SERVER_DIR }}
+          exclude: |
+            **/.git*
+            **/.git*/**
+            data/**
+            config.sample.php
