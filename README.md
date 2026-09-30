@@ -54,8 +54,8 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
 - ログ: `Get-Content C:\lp-bot\bot\bot.log -Tail 20 -Wait -Encoding UTF8`
-- 停止: `powershell -ExecutionPolicy Bypass -File C:lp-bototstop.ps1`
-- 再起動（.env 変更後）: `powershell -ExecutionPolicy Bypass -File C:lp-bototestart.ps1`
+- 停止: `powershell -ExecutionPolicy Bypass -File C:\lp-bot\bot\stop.ps1`
+- 再起動（.env 変更後）: `powershell -ExecutionPolicy Bypass -File C:\lp-bot\bot\restart.ps1`
 
 ### Linux VPS（Node.js 20.6 以上）
 
