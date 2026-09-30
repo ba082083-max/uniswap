@@ -1,4 +1,4 @@
-# 残りの GitHub Secrets を登録し、管理画面を初回デプロイする（このPCで実行）
+﻿# 残りの GitHub Secrets を登録し、管理画面を初回デプロイする（このPCで実行）
 # パスワードはこの画面で入力し、GitHub Secrets 以外には保存しません。
 $ErrorActionPreference = 'Stop'
 $repo = 'ba082083-max/uniswap'
