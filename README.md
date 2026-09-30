@@ -45,7 +45,18 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 登録後、**Actions → Deploy dashboard → Run workflow** で初回デプロイ。
 以降は `dashboard/` を変更して push すると自動でアップロードされます。
 
-## 3. VPS で Bot を動かす（Node.js 20.6 以上）
+## 3. VPS で Bot を動かす
+
+### Windows VPS（管理者 PowerShell で実行。更新時も同じコマンド）
+
+```powershell
+[Net.ServicePointManager]::SecurityProtocol='Tls12'; iwr https://raw.githubusercontent.com/ba082083-max/uniswap/main/bot/setup-vps.ps1 -OutFile $env:TEMP\setup-vps.ps1 -UseBasicParsing; powershell -ExecutionPolicy Bypass -File $env:TEMP\setup-vps.ps1
+```
+
+- ログ: `Get-Content C:\lp-bot\bot\bot.log -Tail 20 -Wait -Encoding UTF8`
+- 停止: `Stop-ScheduledTask -TaskName "LP Bot"`
+
+### Linux VPS（Node.js 20.6 以上）
 
 ```bash
 git clone https://github.com/<ユーザー名>/lp-bot.git
