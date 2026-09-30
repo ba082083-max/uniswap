@@ -33,9 +33,11 @@ Step 'Node.js を確認'
 $node = Get-NodeExe
 if (-not (Test-NodeVersion $node)) {
     Write-Host 'Node.js 22 (LTS) をインストールします...'
-    $rel = Invoke-RestMethod 'https://nodejs.org/dist/index.json' |
+    # PowerShell 5.1 では括弧で囲まないと配列が1要素として流れるため ( ) が必要
+    $rel = (Invoke-RestMethod 'https://nodejs.org/dist/index.json') |
         Where-Object { $_.version -like 'v22.*' -and $_.files -contains 'win-x64-msi' } |
         Select-Object -First 1
+    if (-not $rel) { throw 'Node.js のバージョン情報を取得できませんでした' }
     $msi = Join-Path $env:TEMP "node-$($rel.version)-x64.msi"
     Invoke-WebRequest "https://nodejs.org/dist/$($rel.version)/node-$($rel.version)-x64.msi" -OutFile $msi -UseBasicParsing
     $proc = Start-Process msiexec.exe -ArgumentList '/i', "`"$msi`"", '/qn', '/norestart' -Wait -PassThru
