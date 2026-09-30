@@ -30,7 +30,7 @@
 | `FTP_SERVER` | `ftp8.gmoserver.jp` |
 | `FTP_USERNAME` | FTPアカウント |
 | `FTP_PASSWORD` | FTPパスワード |
-| `FTP_SERVER_DIR` | `uniswap.test-test.me` の公開フォルダ + `lpbot/`（例: `/uniswap.test-test.me/lpbot/`。末尾は `/`） |
+| `FTP_SERVER_DIR` | `/uniswap.test-test.me/lpbot/` |
 | `DASHBOARD_PASSWORD` | 管理画面のログインパスワード（新しく決める） |
 | `BOT_TOKEN` | 長いランダム文字列（下記コマンドで生成） |
 
