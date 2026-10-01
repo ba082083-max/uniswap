@@ -65,6 +65,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
             $next = ['paused' => true, 'exit_at' => $current['exit_at'] ?? null];
             break;
         case 'resume':
+            // 引き上げが終わる前に再開すると、引き上げ指示が取り消されてしまうため受け付けない
+            if (exit_pending($current, read_json('status', []))) {
+                $_SESSION['flash'] = '引き上げがまだ完了していません。「引き上げ完了」と表示されてから再開してください。';
+                header('Location: ./');
+                exit;
+            }
             $next = ['paused' => false, 'exit_at' => null];
             break;
         case 'exit':
@@ -92,13 +98,17 @@ $stale = $age === null || $age > max(300, $interval * 5);
 $positions = $status['positions'] ?? [];
 $totalValue = array_sum(array_column($positions, 'valueInToken1'));
 $totalFees = array_sum(array_column($positions, 'feesInToken1'));
+$exitPending = exit_pending($control, $status);
+$exitDone = !empty($control['exit_at']) && !$exitPending;
+$flash = $_SESSION['flash'] ?? '';
+unset($_SESSION['flash']);
 ?>
 <!doctype html>
 <html lang="ja">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<meta http-equiv="refresh" content="60">
+<meta http-equiv="refresh" content="<?= $exitPending ? 15 : 60 ?>">
 <title>LP Bot 管理画面</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -123,8 +133,10 @@ $totalFees = array_sum(array_column($positions, 'feesInToken1'));
       <span class="badge">監視モード（取引しない）</span>
     <?php endif; ?>
     <span class="badge <?= $control['paused'] ? 'warn' : '' ?>"><?= $control['paused'] ? '一時停止中' : '自動 有効' ?></span>
-    <?php if (!empty($control['exit_at'])): ?>
-      <span class="badge warn">引き上げ指示済み</span>
+    <?php if ($exitPending): ?>
+      <span class="badge warn">引き上げ処理中…（Bot が実行するまで 1〜2 分お待ちください）</span>
+    <?php elseif ($exitDone): ?>
+      <span class="badge ok">引き上げ完了</span>
     <?php endif; ?>
     <?php if (!empty($status['halted'])): ?>
       <span class="badge bad">連続失敗で自動停止中（一時停止→再開で解除）</span>
@@ -133,9 +145,13 @@ $totalFees = array_sum(array_column($positions, 'feesInToken1'));
       <form method="post" class="inline">
         <input type="hidden" name="csrf" value="<?= h($_SESSION['csrf'] ?? '') ?>">
         <input type="hidden" name="action" value="<?= $control['paused'] ? 'resume' : 'pause' ?>">
-        <button type="submit"><?= $control['paused'] ? '再開する' : '一時停止する' ?></button>
+        <?php if ($exitPending): ?>
+          <button type="button" disabled title="引き上げ完了後に再開できます">再開する（引き上げ完了後）</button>
+        <?php else: ?>
+          <button type="submit"><?= $control['paused'] ? '再開する' : '一時停止する' ?></button>
+        <?php endif; ?>
       </form>
-      <?php if (($status['mode'] ?? '') === 'live'): ?>
+      <?php if (($status['mode'] ?? '') === 'live' && !$exitPending): ?>
       <form method="post" class="inline" onsubmit="return confirm('すべてのポジションを解除して、資金をウォレットに戻します。よろしいですか？');">
         <input type="hidden" name="csrf" value="<?= h($_SESSION['csrf'] ?? '') ?>">
         <input type="hidden" name="action" value="exit">
@@ -144,6 +160,9 @@ $totalFees = array_sum(array_column($positions, 'feesInToken1'));
       <?php endif; ?>
     </div>
   </section>
+  <?php if ($flash): ?>
+    <p class="flash"><?= h($flash) ?></p>
+  <?php endif; ?>
 
   <section class="grid">
     <div class="card"><div class="label">プール</div><div class="big"><?= h($pair) ?></div>

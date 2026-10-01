@@ -52,6 +52,19 @@ function write_json(string $name, array $value): void
     );
 }
 
+// 「全部引き上げ」を指示したが、Bot がまだ実行していない状態か
+function exit_pending(array $control, array $status): bool
+{
+    if (empty($control['exit_at'])) {
+        return false;
+    }
+    // 古い Bot（完了を報告しない版）の場合は判定できないので制限しない
+    if (!array_key_exists('handledExitAt', $status)) {
+        return false;
+    }
+    return (int)($status['handledExitAt'] ?? 0) !== (int)$control['exit_at'];
+}
+
 function h($s): string
 {
     return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');

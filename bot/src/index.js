@@ -143,13 +143,14 @@ async function act(executor, positions) {
 
   // 管理画面の「全部引き上げ」
   if (control.exit_at && control.exit_at !== saved.handledExitAt) {
+    const exitAt = control.exit_at;
     await guarded('全ポジションの引き上げ', async () => {
       for (const p of positions) await executor.closePosition(p);
+      // 成功したときだけ完了扱い（失敗したら次回また試す）
+      saved.handledExitAt = exitAt;
+      saved.pendingOpen = false;
       addHistory('exit', `${positions.length} 件のポジションを解除`);
     });
-    saved.handledExitAt = control.exit_at;
-    saved.pendingOpen = false;
-    saveState();
     return;
   }
   if (control.paused || halted) return;
@@ -257,6 +258,8 @@ async function tick(pool, executor) {
       priceLower: tickToPrice(range.tickLower, d0, d1),
       priceUpper: tickToPrice(range.tickUpper, d0, d1),
     },
+    // 管理画面の「引き上げ処理中」表示用：どの引き上げ指示まで完了したか
+    handledExitAt: saved.handledExitAt,
     gasSpentEth: formatEther(BigInt(saved.gasSpentWei)),
     rebalances24h: saved.rebalanceTimes.length,
     history: saved.history,
